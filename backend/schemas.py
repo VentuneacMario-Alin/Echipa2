@@ -37,6 +37,7 @@ class MessageResponse(BaseModel):
 
 ResourceStatus = Literal["disponibil", "in_utilizare", "mentenanta", "retras"]
 AttachmentKind = Literal["link", "fisier"]
+BookingStatus = Literal["pending", "confirmed", "cancelled", "completed", "active"]
 
 
 class ResourceTypeCreate(BaseModel):
@@ -137,3 +138,29 @@ class ResourceRead(BaseModel):
     tags: list[str]
     attributes: dict[str, str]
     attachments: list[AttachmentRead]
+
+
+class BookingCreate(BaseModel):
+    start_at: datetime
+    end_at: datetime
+    notes: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_booking_window(self):
+        if self.end_at <= self.start_at:
+            raise ValueError("end_at must be later than start_at.")
+        return self
+
+
+class BookingRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    resource_id: int
+    user_id: int
+    start_at: datetime
+    end_at: datetime
+    status: BookingStatus
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime
