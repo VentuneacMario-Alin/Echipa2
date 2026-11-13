@@ -3,16 +3,16 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.database import get_db
-from app.models import User
-from app.schemas import (
+from ..config import settings
+from ..database import get_db
+from ..models import User
+from ..schemas import (
     LoginRequest,
     MessageResponse,
     RegisterRequest,
     UserResponse,
 )
-from app.security import create_access_token, hash_password, verify_password
+from ..security import create_access_token, hash_password, verify_password
 
 
 router = APIRouter(tags=["Authentication"])
