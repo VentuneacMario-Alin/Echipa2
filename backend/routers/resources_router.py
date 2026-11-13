@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..database import get_db
 from ..models import (
+    Booking,
     Category,
     Resource,
     ResourceAttribute,
@@ -17,6 +18,8 @@ from ..models import (
 )
 from ..schemas import (
     AttachmentCreate,
+    BookingCreate,
+    BookingRead,
     CategoryCreate,
     CategoryRead,
     ResourceCreate,
@@ -59,6 +62,13 @@ def ensure_related(db: Session, payload: ResourceCreate | ResourceUpdate) -> Non
         raise HTTPException(status_code=404, detail="Category not found.")
     if payload.owner_id is not None and db.get(User, payload.owner_id) is None:
         raise HTTPException(status_code=404, detail="Owner not found.")
+
+
+def get_resource_or_404(db: Session, resource_id: int) -> Resource:
+    resource = db.get(Resource, resource_id)
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Resource not found.")
+    return resource
 
 
 def sync_metadata(db: Session, resource_id: int, tags: list[str] | None, attributes: dict[str, str] | None,
@@ -172,11 +182,108 @@ def create_category(payload: CategoryCreate, db: Session = Depends(get_db), _: U
     return category
 
 
+@router.get("/{resource_id}/bookings", response_model=list[BookingRead])
+def list_resource_bookings(resource_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    get_resource_or_404(db, resource_id)
+    return db.scalars(
+        select(Booking)
+        .where(Booking.resource_id == resource_id)
+        .order_by(Booking.start_at.asc())
+    ).all()
+
+
+@router.post("/{resource_id}/bookings", response_model=BookingRead, status_code=status.HTTP_201_CREATED)
+def create_booking(
+    resource_id: int,
+    payload: BookingCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    resource = get_resource_or_404(db, resource_id)
+
+    overlapping = db.scalar(
+        select(Booking.id)
+        .where(
+            Booking.resource_id == resource_id,
+            Booking.status.in_(["pending", "confirmed", "active"]),
+            Booking.start_at < payload.end_at,
+            Booking.end_at > payload.start_at,
+        )
+        .limit(1)
+    )
+    if overlapping is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A booking already exists for this time window.",
+        )
+
+    if resource.status != "disponibil":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This resource is not available for booking at this moment.",
+        )
+
+    booking = Booking(
+        resource_id=resource_id,
+        user_id=user.id,
+        start_at=payload.start_at,
+        end_at=payload.end_at,
+        notes=payload.notes,
+        status="confirmed",
+    )
+    db.add(booking)
+    resource.status = "in_utilizare"
+    db.commit()
+    db.refresh(booking)
+    return booking
+
+
+@router.get("/bookings/me", response_model=list[BookingRead])
+def list_my_bookings(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return db.scalars(
+        select(Booking)
+        .where(Booking.user_id == user.id)
+        .order_by(Booking.start_at.desc())
+    ).all()
+
+
+@router.patch("/bookings/{booking_id}/cancel", response_model=BookingRead)
+def cancel_booking(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    booking = db.get(Booking, booking_id)
+    if booking is None:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.user_id != user.id and user.role not in {"admin", "editor"}:
+        raise HTTPException(status_code=403, detail="You cannot cancel this booking.")
+
+    booking.status = "cancelled"
+    resource = db.get(Resource, booking.resource_id)
+    if resource is not None:
+        active_booking = db.scalar(
+            select(Booking.id)
+            .where(
+                Booking.resource_id == resource.id,
+                Booking.status.in_(["pending", "confirmed", "active"]),
+                Booking.id != booking.id,
+                Booking.start_at < booking.end_at,
+                Booking.end_at > booking.start_at,
+            )
+            .limit(1)
+        )
+        if active_booking is None:
+            resource.status = "disponibil"
+
+    db.commit()
+    db.refresh(booking)
+    return booking
+
+
 @router.get("/{resource_id}", response_model=ResourceRead)
 def get_resource(resource_id: int, db: Session = Depends(get_db)):
-    resource = db.get(Resource, resource_id)
-    if resource is None:
-        raise HTTPException(status_code=404, detail="Resource not found.")
+    resource = get_resource_or_404(db, resource_id)
     return serialize_resource(db, resource)
 
 
