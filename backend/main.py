@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from . import models
 from .database import Base, engine
 from .routers.auth_router import router as auth_router
+from .routers.resources_router import router as resources_router
 
 
 @asynccontextmanager
@@ -19,6 +20,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(auth_router, prefix="/auth")
+app.include_router(resources_router)
 
 
 @app.get("/health", tags=["System"])
