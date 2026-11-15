@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#193b32" />
+    <title>Biblioteca de resurse | RRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navigare principală">
+        <a class="brand" href="/" aria-label="Research Resource Manager, pagina principală">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span class="brand-name">fieldnotes<span>RESEARCH RESOURCE MANAGER</span></span>
+        </a>
+
+        <div class="side-section">
+          <p class="side-label">Spațiul echipei</p>
+          <button class="nav-link is-current" id="all-resources" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="1"/><rect x="14" y="4" width="7" height="7" rx="1"/><rect x="3" y="15" width="7" height="6" rx="1"/><rect x="14" y="15" width="7" height="6" rx="1"/></svg>
+            <span>Toate resursele</span><span class="nav-count" id="sidebar-total">0</span>
+          </button>
+        </div>
+
+        <div class="side-section categories-section">
+          <div class="side-heading">
+            <p class="side-label">Categorii</p>
+            <button class="icon-button side-add" id="add-category" type="button" aria-label="Adaugă categorie" title="Adaugă categorie">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
+          <nav id="category-list" class="category-list" aria-label="Filtrează după categorie"></nav>
+          <p class="category-empty" id="category-empty" hidden>Nu există categorii încă.</p>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-note"><span class="status-pulse"></span><span>Bibliotecă de cercetare</span></div>
+          <button class="account-button" id="auth-button" type="button">
+            <span class="account-avatar" id="account-avatar">?</span>
+            <span class="account-copy"><strong id="account-name">Conectare</strong><small id="account-role">Acces la administrare</small></span>
+            <svg class="account-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="breadcrumb"><span>Bibliotecă</span><span class="breadcrumb-separator">/</span><strong>Resurse</strong></div>
+          <div class="topbar-meta"><span class="live-dot"></span><span id="connection-label">Se conectează la bibliotecă</span></div>
+        </header>
+
+        <section class="workspace">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">RESURSELE ECHIPEI</p>
+              <h1>Biblioteca de resurse</h1>
+              <p class="page-description">Găsește rapid echipamente, materiale și cunoștințe pentru cercetare.</p>
+            </div>
+            <button class="button button-primary" id="add-resource" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              <span>Adaugă resursă</span>
+            </button>
+          </div>
+
+          <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
+
+          <section class="overview" aria-label="Sumar resurse">
+            <div class="overview-item overview-total"><span class="overview-label">RESURSE AFIȘATE</span><strong id="stat-total">0</strong><span class="overview-caption">în rezultatul curent</span></div>
+            <div class="overview-item"><span class="overview-label">CATEGORII</span><strong id="stat-categories">0</strong><span class="overview-caption">domenii organizate</span></div>
+            <div class="overview-item"><span class="overview-label">DISPONIBILE</span><strong id="stat-available">0</strong><span class="overview-caption">gata de utilizare</span></div>
+            <div class="overview-aside"><span class="overview-aside-mark">R</span><span>Un inventar comun,<br />mereu la îndemână.</span></div>
+          </section>
+
+          <section class="catalog" aria-label="Catalog de resurse">
+            <div class="catalog-header">
+              <div><h2>Catalog</h2><p id="result-caption">Toate resursele înregistrate</p></div>
+              <button class="button button-quiet" id="refresh-resources" type="button" title="Reîncarcă lista">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"/></svg>
+                <span>Reîncarcă</span>
+              </button>
+            </div>
+
+            <div class="filters">
+              <label class="search-field">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                <span class="visually-hidden">Caută resurse</span>
+                <input id="search-input" type="search" placeholder="Caută după denumire sau cuvinte-cheie…" autocomplete="off" />
+                <kbd>/</kbd>
+              </label>
+              <label class="filter-select"><span class="visually-hidden">Filtrează după categorie</span><select id="category-filter"><option value="">Toate categoriile</option></select></label>
+              <label class="filter-select"><span class="visually-hidden">Filtrează după tip</span><select id="type-filter"><option value="">Toate tipurile</option></select></label>
+              <label class="filter-select"><span class="visually-hidden">Filtrează după status</span><select id="status-filter"><option value="">Orice status</option><option value="disponibil">Disponibil</option><option value="in_utilizare">În utilizare</option><option value="mentenanta">În mentenanță</option><option value="retras">Retras</option></select></label>
+            </div>
+
+            <div class="table-wrap" id="table-wrap">
+              <table class="resource-table">
+                <thead><tr><th scope="col">RESURSĂ</th><th scope="col">CATEGORIE</th><th scope="col">TIP</th><th scope="col">STATUS</th><th scope="col">LOCAȚIE</th><th scope="col"><span class="visually-hidden">Detalii</span></th></tr></thead>
+                <tbody id="resource-rows"></tbody>
+              </table>
+              <div class="empty-state" id="empty-state" hidden>
+                <span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6.5 12 3l8 3.5v11L12 21l-8-3.5z"/><path d="m4 6.5 8 3.7 8-3.7M12 10.2V21"/></svg></span>
+                <h3 id="empty-title">Biblioteca începe aici</h3>
+                <p id="empty-description">Adaugă prima resursă sau schimbă filtrele pentru a vedea rezultate.</p>
+                <button class="button button-secondary" id="empty-add" type="button">Adaugă o resursă</button>
+              </div>
+            </div>
+            <div class="catalog-footer"><span id="footer-count">0 rezultate</span><span class="footer-hint">Selectează o resursă pentru detalii</span></div>
+          </section>
+
+          <footer class="page-footer"><span>FIELDNOTES <span class="footer-dot">·</span> RESEARCH RESOURCE MANAGER</span><span>Informații centralizate pentru cercetare</span></footer>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="dialog" id="resource-dialog" aria-labelledby="resource-dialog-title">
+      <form class="dialog-form" id="resource-form">
+        <div class="dialog-heading"><div><p class="eyebrow" id="resource-dialog-kicker">RESURSĂ NOUĂ</p><h2 id="resource-dialog-title">Adaugă o resursă</h2></div><button class="icon-button dialog-close" type="button" data-close="resource-dialog" aria-label="Închide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+        <div class="form-grid">
+          <label class="form-field field-wide"><span>Denumire <b>*</b></span><input name="name" required maxlength="200" placeholder="Ex. Microscop digital Leica" /></label>
+          <label class="form-field"><span>Categorie</span><select name="category_id"><option value="">Fără categorie</option></select></label>
+          <label class="form-field"><span>Tip de resursă <b>*</b></span><select name="type_id" required></select></label>
+          <label class="form-field"><span>Status</span><select name="status"><option value="disponibil">Disponibil</option><option value="in_utilizare">În utilizare</option><option value="mentenanta">În mentenanță</option><option value="retras">Retras</option></select></label>
+          <label class="form-field"><span>Locație</span><input name="location" maxlength="200" placeholder="Laborator, sală, URL…" /></label>
+          <label class="form-field"><span>Identificator</span><input name="identifier" maxlength="100" placeholder="Nr. inventar, DOI, ISBN…" /></label>
+          <label class="form-field"><span>Data achiziției</span><input name="acquired_on" type="date" /></label>
+          <label class="form-field field-wide"><span>Descriere</span><textarea name="description" rows="3" placeholder="Detalii care ajută echipa să identifice și să folosească resursa."></textarea></label>
+          <label class="form-field field-wide"><span>Cuvinte-cheie <small>separate prin virgulă</small></span><input name="tags" placeholder="microscopie, imagistică, celule" /></label>
+        </div>
+        <p class="form-error" id="resource-error" role="alert" hidden></p>
+        <div class="dialog-actions"><button class="button button-quiet" type="button" data-close="resource-dialog">Anulează</button><button class="button button-primary" type="submit" id="resource-submit">Salvează resursa</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="dialog detail-dialog" id="detail-dialog" aria-labelledby="detail-title">
+      <div class="detail-content" id="detail-content"></div>
+    </dialog>
+
+    <dialog class="dialog compact-dialog" id="auth-dialog" aria-labelledby="auth-title">
+      <form class="dialog-form" id="auth-form">
+        <div class="dialog-heading"><div><p class="eyebrow">ACCES SECURIZAT</p><h2 id="auth-title">Conectare</h2></div><button class="icon-button dialog-close" type="button" data-close="auth-dialog" aria-label="Închide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+        <p class="dialog-intro">Conectează-te cu un cont de editor sau administrator pentru a gestiona resursele.</p>
+        <label class="form-field"><span>E-mail</span><input name="email" type="email" required autocomplete="username" /></label>
+        <label class="form-field"><span>Parolă</span><input name="password" type="password" required autocomplete="current-password" /></label>
+        <p class="form-error" id="auth-error" role="alert" hidden></p>
+        <div class="dialog-actions"><button class="button button-quiet" type="button" data-close="auth-dialog">Anulează</button><button class="button button-primary" type="submit">Conectare</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="dialog compact-dialog" id="category-dialog" aria-labelledby="category-title">
+      <form class="dialog-form" id="category-form">
+        <div class="dialog-heading"><div><p class="eyebrow">ORGANIZARE</p><h2 id="category-title">Categorie nouă</h2></div><button class="icon-button dialog-close" type="button" data-close="category-dialog" aria-label="Închide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+        <label class="form-field"><span>Denumire <b>*</b></span><input name="name" required maxlength="100" placeholder="Ex. Genetică" /></label>
+        <label class="form-field"><span>Categorie părinte</span><select name="parent_id"><option value="">Categorie principală</option></select></label>
+        <label class="form-field"><span>Descriere</span><textarea name="description" rows="3" placeholder="Scurtă descriere a categoriei."></textarea></label>
+        <p class="form-error" id="category-error" role="alert" hidden></p>
+        <div class="dialog-actions"><button class="button button-quiet" type="button" data-close="category-dialog">Anulează</button><button class="button button-primary" type="submit">Salvează categoria</button></div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
