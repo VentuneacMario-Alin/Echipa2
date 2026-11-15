@@ -12,6 +12,12 @@ const state = {
 };
 
 const categoryColors = ["#e7a084", "#8db6a0", "#82a8bd", "#d8b15f", "#a597c5", "#cf8d91", "#81b5a9"];
+const defaultDesignCategories = [
+  { id: "medicale", name: "Medicale", parent_id: null, description: "Echipamente și dispozitive medicale" },
+  { id: "robotica", name: "Robotică", parent_id: null, description: "Platforme, senzori și sisteme robotizate" },
+  { id: "biologie", name: "Biologie", parent_id: null, description: "Reactivi și instrumente de laborator biologic" },
+  { id: "laborator", name: "Laborator", parent_id: null, description: "Echipamente și materiale pentru testare" },
+];
 const statusLabels = {
   disponibil: "Disponibil",
   in_utilizare: "În utilizare",
@@ -172,12 +178,21 @@ function renderCatalogOptions() {
   fillSelect(elements.categoryForm.elements.parent_id, state.categories, "Categorie principală");
 }
 
+function mergeDesignCategories(categories) {
+  const combined = [...categories];
+  for (const designCategory of defaultDesignCategories) {
+    const exists = combined.some((item) => String(item.name).trim().toLowerCase() === designCategory.name.toLowerCase());
+    if (!exists) combined.push({ ...designCategory, created_at: new Date().toISOString() });
+  }
+  return combined;
+}
+
 async function loadCatalogs() {
   const [categories, types] = await Promise.all([
     api("/resources/catalog/categories"),
     api("/resources/catalog/types"),
   ]);
-  state.categories = categories;
+  state.categories = mergeDesignCategories(categories || []);
   state.types = types;
   renderCatalogOptions();
   renderCategories();
