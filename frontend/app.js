@@ -12,12 +12,6 @@ const state = {
 };
 
 const categoryColors = ["#e7a084", "#8db6a0", "#82a8bd", "#d8b15f", "#a597c5", "#cf8d91", "#81b5a9"];
-const defaultDesignCategories = [
-  { id: "medicale", name: "Medicale", parent_id: null, description: "Echipamente și dispozitive medicale" },
-  { id: "robotica", name: "Robotică", parent_id: null, description: "Platforme, senzori și sisteme robotizate" },
-  { id: "biologie", name: "Biologie", parent_id: null, description: "Reactivi și instrumente de laborator biologic" },
-  { id: "laborator", name: "Laborator", parent_id: null, description: "Echipamente și materiale pentru testare" },
-];
 const statusLabels = {
   disponibil: "Disponibil",
   in_utilizare: "În utilizare",
@@ -181,21 +175,13 @@ function renderCatalogOptions() {
   fillSelect(elements.categoryForm.elements.parent_id, state.categories, "Categorie principală");
 }
 
-function mergeDesignCategories(categories) {
-  const combined = [...categories];
-  for (const designCategory of defaultDesignCategories) {
-    const exists = combined.some((item) => String(item.name).trim().toLowerCase() === designCategory.name.toLowerCase());
-    if (!exists) combined.push({ ...designCategory, created_at: new Date().toISOString() });
-  }
-  return combined;
-}
 
 async function loadCatalogs() {
   const [categories, types] = await Promise.all([
     api("/resources/catalog/categories"),
     api("/resources/catalog/types"),
   ]);
-  state.categories = mergeDesignCategories(categories || []);
+  state.categories = categories || [];
   state.types = types;
   renderCatalogOptions();
   renderCategories();
@@ -381,6 +367,7 @@ async function login(event) {
     setUser(user);
     elements.authDialog.close();
     elements.authForm.reset();
+    loadCatalogs().then(loadResources);
     showToast(isEditor() ? "Conectare reușită. Poți administra resursele." : "Conectare reușită. Contul are acces doar la consultare.");
   } catch (failure) {
     error.textContent = failure.message;
@@ -480,7 +467,13 @@ document.addEventListener("keydown", (event) => {
 });
 
 renderAccount();
-loadCatalogs().then(loadResources).catch((error) => {
+if (!state.user) {
+  elements.authDialog.showModal();
+  elements.empty.hidden = false;
+  document.querySelector("#empty-title").textContent = "Conecta?i-v? pentru a continua";
+  document.querySelector("#empty-description").textContent = "Resursele sunt disponibile doar pentru utilizatorii autentifica?i.";
+  document.querySelector("#empty-add").hidden = true;
+} else loadCatalogs().then(loadResources).catch((error) => {
   setNotice(`Nu am putut încărca nomenclatoarele. ${error.message}`, true);
   document.querySelector("#connection-label").textContent = "Conexiune indisponibilă";
   elements.empty.hidden = false;

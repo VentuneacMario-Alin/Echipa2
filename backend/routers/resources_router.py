@@ -133,6 +133,7 @@ def list_resources(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
+    _user: User = Depends(current_user),
 ):
     query = select(Resource)
     if q and q.strip():
@@ -218,7 +219,7 @@ def list_tags(db: Session = Depends(get_db)):
 
 
 @router.get("/catalog/categories", response_model=list[CategoryRead])
-def list_categories(db: Session = Depends(get_db)):
+def list_categories(db: Session = Depends(get_db), _user: User = Depends(current_user)):
     return db.scalars(select(Category).order_by(Category.name)).all()
 
 
@@ -418,7 +419,7 @@ def cancel_booking(
 
 
 @router.get("/{resource_id}", response_model=ResourceRead)
-def get_resource(resource_id: int, db: Session = Depends(get_db)):
+def get_resource(resource_id: int, db: Session = Depends(get_db), _user: User = Depends(current_user)):
     resource = get_resource_or_404(db, resource_id)
     return serialize_resource(db, resource)
 
