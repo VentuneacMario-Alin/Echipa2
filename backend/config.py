@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     cookie_secure: bool = False
+    admin_email: str | None = None
+    admin_password: str | None = None
 
     model_config = SettingsConfigDict(env_file=(".env", "backend/.env"), extra="ignore")
 

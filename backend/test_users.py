@@ -6,7 +6,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./test_rrm.db")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from backend.database import Base, SessionLocal, engine  # noqa: E402
-from backend.main import app  # noqa: E402
+from backend.main import app, ensure_admin  # noqa: E402
 from backend.models import User  # noqa: E402
 from backend.security import hash_password  # noqa: E402
 
@@ -60,6 +60,26 @@ class UserAdminTests(unittest.TestCase):
         self.assertEqual(self.admin.patch("/users/9999", json={"role": "editor"}).status_code, 404)
         self.assertEqual(self.admin.patch(f"/users/{admin_id}", json={"role": "superuser"}).status_code, 422)
         self.assertEqual(self.editor.patch(f"/users/{admin_id}", json={"role": "cititor"}).status_code, 403)
+
+
+class AdminBootstrapTests(unittest.TestCase):
+    def setUp(self):
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+
+    def test_initial_admin_is_created_once_and_can_login(self):
+        with SessionLocal() as db:
+            ensure_admin(db, "Root@Example.com", "parola1234")
+            ensure_admin(db, "root@example.com", "alta-parola")
+            self.assertEqual(db.query(User).count(), 1)
+        client = login("root@example.com")
+        self.assertEqual(client.get("/auth/me").json()["role"], "admin")
+
+    def test_nothing_created_without_configuration(self):
+        with SessionLocal() as db:
+            ensure_admin(db, None, None)
+            ensure_admin(db, "a@example.com", "")
+            self.assertEqual(db.query(User).count(), 0)
 
 
 if __name__ == "__main__":

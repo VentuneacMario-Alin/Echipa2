@@ -7,10 +7,22 @@ from sqlalchemy import select
 
 from . import models
 from .database import Base, SessionLocal, engine
-from .models import Category, ResourceType
+from .security import hash_password
+from .config import settings
+from .models import Category, ResourceType, User
 from .routers.auth_router import router as auth_router
 from .routers.resources_router import router as resources_router
 from .routers.users_router import router as users_router
+
+
+def ensure_admin(db, email: str | None, password: str | None) -> None:
+    """Creeaza administratorul initial daca ADMIN_EMAIL/ADMIN_PASSWORD sunt configurate."""
+    if not email or not password:
+        return
+    email = email.strip().lower()
+    if db.scalar(select(User.id).where(User.email == email)) is None:
+        db.add(User(name="Administrator", email=email, password_hash=hash_password(password), role="admin"))
+        db.commit()
 
 
 @asynccontextmanager
@@ -50,6 +62,7 @@ async def lifespan(_: FastAPI):
             ) is None:
                 db.add(Category(name=name, parent_id=parent_id))
         db.commit()
+        ensure_admin(db, settings.admin_email, settings.admin_password)
     yield
 
 
