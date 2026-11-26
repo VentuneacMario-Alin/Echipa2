@@ -31,6 +31,11 @@ class UserResponse(BaseModel):
     is_active: bool
 
 
+class UserUpdate(BaseModel):
+    role: str | None = Field(default=None, pattern="^(admin|editor|cititor)$")
+    is_active: bool | None = None
+
+
 class MessageResponse(BaseModel):
     message: str
 
