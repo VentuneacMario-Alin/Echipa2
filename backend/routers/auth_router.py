@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
+from ..dependencies import current_user
 from ..models import User
 from ..schemas import (
     LoginRequest,
@@ -81,3 +82,8 @@ def logout(response: Response):
         path="/",
     )
     return {"message": "Logged out. The access cookie has been cleared."}
+
+
+@router.get("/me", response_model=UserResponse)
+def me(user: User = Depends(current_user)):
+    return user
