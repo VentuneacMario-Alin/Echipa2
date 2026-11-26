@@ -45,6 +45,11 @@ class ResourceTypeCreate(BaseModel):
     description: str | None = None
 
 
+class ResourceTypeUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    description: str | None = None
+
+
 class ResourceTypeRead(ResourceTypeCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -52,6 +57,12 @@ class ResourceTypeRead(ResourceTypeCreate):
 
 class CategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
+    description: str | None = None
+    parent_id: int | None = None
+
+
+class CategoryUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
     description: str | None = None
     parent_id: int | None = None
 
