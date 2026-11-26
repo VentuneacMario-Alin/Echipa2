@@ -47,6 +47,24 @@ class AuthTests(unittest.TestCase):
         self.client.post("/auth/logout")
         self.assertEqual(self.client.get("/auth/me").status_code, 401)
 
+    def test_cors_allows_frontend_origin_with_credentials(self):
+        origin = "http://localhost:8000"
+        response = self.client.options(
+            "/auth/login",
+            headers={"Origin": origin, "Access-Control-Request-Method": "POST",
+                     "Access-Control-Request-Headers": "content-type"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["access-control-allow-origin"], origin)
+        self.assertEqual(response.headers["access-control-allow-credentials"], "true")
+
+    def test_cors_rejects_unknown_origin(self):
+        response = self.client.options(
+            "/auth/login",
+            headers={"Origin": "http://evil.example", "Access-Control-Request-Method": "POST"},
+        )
+        self.assertNotIn("access-control-allow-origin", response.headers)
+
 
 if __name__ == "__main__":
     unittest.main()
