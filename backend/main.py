@@ -10,6 +10,7 @@ from .database import Base, SessionLocal, engine
 from .models import Category, ResourceType
 from .routers.auth_router import router as auth_router
 from .routers.resources_router import router as resources_router
+from .routers.users_router import router as users_router
 
 
 @asynccontextmanager
@@ -58,6 +59,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(auth_router, prefix="/auth")
+app.include_router(users_router, prefix="/users")
 app.include_router(resources_router)
 
 
