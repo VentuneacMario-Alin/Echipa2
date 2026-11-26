@@ -10,10 +10,21 @@ python -m venv backend/.venv
 backend/.venv/Scripts/activate        # Windows (Linux/Mac: source backend/.venv/bin/activate)
 pip install -r backend/requirements.txt
 cp backend/.env.example backend/.env  # apoi editati secretul JWT si contul de admin
-uvicorn backend.main:app --reload
 ```
 
-Aplicația rulează la http://127.0.0.1:8000, documentația Swagger la `/docs`, verificarea stării la `/health`.
+Se pornesc două procese, în două terminale, din rădăcina repository-ului:
+
+```bash
+# 1) Backend (API) – http://localhost:8080
+python -m uvicorn backend.main:app --reload --port 8080
+
+# 2) Frontend (fisiere statice) – http://localhost:8000
+python -m http.server 8000 --directory frontend
+```
+
+Deschideți http://localhost:8000 în browser. Frontend-ul apelează API-ul pe același host, portul 8080
+(folosiți fie `localhost`, fie `127.0.0.1` în ambele locuri, nu amestecat). Documentația Swagger este la
+http://localhost:8080/docs, iar verificarea stării la `/health`.
 Baza de date implicită este SQLite (`research_resources.db`), creată automat la prima pornire, împreună cu tipurile de resurse și categoriile inițiale.
 
 ## Configurare (`backend/.env`)
@@ -23,6 +34,7 @@ Baza de date implicită este SQLite (`research_resources.db`), creată automat l
 | `DATABASE_URL` | Șirul de conexiune SQLAlchemy |
 | `JWT_SECRET_KEY` | Secretul de semnare a sesiunii (obligatoriu de schimbat) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Durata sesiunii |
+| `CORS_ORIGINS` | Originile frontend-ului permise (separate prin virgulă) |
 | `COOKIE_SECURE` | `true` când aplicația rulează prin HTTPS |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Opționale; creează administratorul inițial la pornire |
 
