@@ -1,12 +1,15 @@
+import os
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from fastapi.testclient import TestClient
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_rrm.db")
 
-from backend.database import Base, SessionLocal, engine
-from backend.main import app
-from backend.models import Booking, Resource, ResourceType, User
-from backend.security import create_access_token, hash_password
+from fastapi.testclient import TestClient  # noqa: E402
+
+from backend.database import Base, SessionLocal, engine  # noqa: E402
+from backend.main import app  # noqa: E402
+from backend.models import Booking, Resource, ResourceType, User  # noqa: E402
+from backend.security import create_access_token, hash_password  # noqa: E402
 
 
 class BookingLogicTests(unittest.TestCase):
