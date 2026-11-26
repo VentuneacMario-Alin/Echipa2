@@ -21,10 +21,12 @@ from ..schemas import (
     BookingRead,
     CategoryCreate,
     CategoryRead,
+    CategoryUpdate,
     ResourceCreate,
     ResourceRead,
     ResourceTypeCreate,
     ResourceTypeRead,
+    ResourceTypeUpdate,
     ResourceUpdate,
 )
 
@@ -135,7 +137,10 @@ def list_types(db: Session = Depends(get_db)):
 
 @router.post("/catalog/types", response_model=ResourceTypeRead, status_code=201)
 def create_type(payload: ResourceTypeCreate, db: Session = Depends(get_db), _: User = Depends(editor_only)):
-    resource_type = ResourceType(**payload.model_dump())
+    name = payload.name.strip()
+    if db.scalar(select(ResourceType.id).where(func.lower(ResourceType.name) == name.lower())):
+        raise HTTPException(status_code=409, detail="A resource type with this name already exists.")
+    resource_type = ResourceType(name=name, description=payload.description)
     db.add(resource_type)
     db.commit()
     db.refresh(resource_type)
@@ -151,11 +156,96 @@ def list_categories(db: Session = Depends(get_db)):
 def create_category(payload: CategoryCreate, db: Session = Depends(get_db), _: User = Depends(editor_only)):
     if payload.parent_id is not None and db.get(Category, payload.parent_id) is None:
         raise HTTPException(status_code=404, detail="Parent category not found.")
-    category = Category(**payload.model_dump())
+    ensure_unique_category(db, payload.name.strip(), payload.parent_id)
+    category = Category(name=payload.name.strip(), description=payload.description, parent_id=payload.parent_id)
     db.add(category)
     db.commit()
     db.refresh(category)
     return category
+
+
+def ensure_unique_category(db: Session, name: str, parent_id: int | None, exclude_id: int | None = None) -> None:
+    query = select(Category.id).where(func.lower(Category.name) == name.lower())
+    query = query.where(Category.parent_id.is_(None) if parent_id is None else Category.parent_id == parent_id)
+    if exclude_id is not None:
+        query = query.where(Category.id != exclude_id)
+    if db.scalar(query) is not None:
+        raise HTTPException(status_code=409, detail="A category with this name already exists here.")
+
+
+@router.patch("/catalog/types/{type_id}", response_model=ResourceTypeRead)
+def update_type(type_id: int, payload: ResourceTypeUpdate, db: Session = Depends(get_db),
+                _: User = Depends(editor_only)):
+    resource_type = db.get(ResourceType, type_id)
+    if resource_type is None:
+        raise HTTPException(status_code=404, detail="Resource type not found.")
+    values = payload.model_dump(exclude_unset=True)
+    if "name" in values:
+        if values["name"] is None:
+            raise HTTPException(status_code=422, detail="name cannot be null.")
+        name = values["name"].strip()
+        duplicate = db.scalar(select(ResourceType.id).where(
+            func.lower(ResourceType.name) == name.lower(), ResourceType.id != type_id))
+        if duplicate is not None:
+            raise HTTPException(status_code=409, detail="A resource type with this name already exists.")
+        values["name"] = name
+    for key, value in values.items():
+        setattr(resource_type, key, value)
+    db.commit()
+    db.refresh(resource_type)
+    return resource_type
+
+
+@router.delete("/catalog/types/{type_id}", status_code=204)
+def delete_type(type_id: int, db: Session = Depends(get_db), _: User = Depends(editor_only)):
+    resource_type = db.get(ResourceType, type_id)
+    if resource_type is None:
+        raise HTTPException(status_code=404, detail="Resource type not found.")
+    if db.scalar(select(Resource.id).where(Resource.type_id == type_id).limit(1)) is not None:
+        raise HTTPException(status_code=409, detail="Type is used by existing resources.")
+    db.delete(resource_type)
+    db.commit()
+
+
+@router.patch("/catalog/categories/{category_id}", response_model=CategoryRead)
+def update_category(category_id: int, payload: CategoryUpdate, db: Session = Depends(get_db),
+                    _: User = Depends(editor_only)):
+    category = db.get(Category, category_id)
+    if category is None:
+        raise HTTPException(status_code=404, detail="Category not found.")
+    values = payload.model_dump(exclude_unset=True)
+    if "name" in values:
+        if values["name"] is None:
+            raise HTTPException(status_code=422, detail="name cannot be null.")
+        values["name"] = values["name"].strip()
+    parent_id = values.get("parent_id", category.parent_id)
+    if parent_id is not None:
+        if db.get(Category, parent_id) is None:
+            raise HTTPException(status_code=404, detail="Parent category not found.")
+        ancestor_id = parent_id
+        while ancestor_id is not None:
+            if ancestor_id == category_id:
+                raise HTTPException(status_code=422, detail="A category cannot be its own ancestor.")
+            ancestor_id = db.scalar(select(Category.parent_id).where(Category.id == ancestor_id))
+    ensure_unique_category(db, values.get("name", category.name), parent_id, exclude_id=category_id)
+    for key, value in values.items():
+        setattr(category, key, value)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+@router.delete("/catalog/categories/{category_id}", status_code=204)
+def delete_category(category_id: int, db: Session = Depends(get_db), _: User = Depends(editor_only)):
+    category = db.get(Category, category_id)
+    if category is None:
+        raise HTTPException(status_code=404, detail="Category not found.")
+    if db.scalar(select(Category.id).where(Category.parent_id == category_id).limit(1)) is not None:
+        raise HTTPException(status_code=409, detail="Category has subcategories.")
+    if db.scalar(select(Resource.id).where(Resource.category_id == category_id).limit(1)) is not None:
+        raise HTTPException(status_code=409, detail="Category is used by existing resources.")
+    db.delete(category)
+    db.commit()
 
 
 @router.get("/{resource_id}/bookings", response_model=list[BookingRead])
