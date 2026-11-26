@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -24,6 +26,7 @@ from ..schemas import (
     CategoryUpdate,
     ResourceCreate,
     ResourceRead,
+    ResourceStatus,
     ResourceTypeCreate,
     ResourceTypeRead,
     ResourceTypeUpdate,
@@ -95,27 +98,78 @@ def serialize_resource(db: Session, resource: Resource) -> ResourceRead:
     )
 
 
+SORT_COLUMNS = {
+    "updated_at": Resource.updated_at,
+    "created_at": Resource.created_at,
+    "name": Resource.name,
+}
+
+
+def escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @router.get("", response_model=list[ResourceRead])
 def list_resources(
-    q: str | None = None, status_filter: str | None = Query(default=None, alias="status"),
-    type_id: int | None = None, category_id: int | None = None, tag: str | None = None,
-    skip: int = Query(default=0, ge=0), limit: int = Query(default=50, ge=1, le=100),
+    response: Response,
+    q: str | None = None,
+    status_filter: ResourceStatus | None = Query(default=None, alias="status"),
+    type_id: int | None = None,
+    category_id: int | None = None,
+    tag: str | None = None,
+    include_subcategories: bool = True,
+    sort: Literal["updated_at", "created_at", "name"] = "updated_at",
+    order: Literal["asc", "desc"] = "desc",
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     query = select(Resource)
-    if q:
-        term = f"%{q.strip()}%"
-        query = query.where(or_(Resource.name.ilike(term), Resource.description.ilike(term),
-                                Resource.location.ilike(term), Resource.identifier.ilike(term)))
+    if q and q.strip():
+        term = f"%{escape_like(q.strip())}%"
+        in_tags = (
+            select(ResourceTag.resource_id)
+            .join(Tag, Tag.id == ResourceTag.tag_id)
+            .where(ResourceTag.resource_id == Resource.id, Tag.name.ilike(term, escape="\\"))
+        )
+        in_attributes = select(ResourceAttribute.resource_id).where(
+            ResourceAttribute.resource_id == Resource.id,
+            ResourceAttribute.attr_value.ilike(term, escape="\\"),
+        )
+        query = query.where(or_(
+            Resource.name.ilike(term, escape="\\"),
+            Resource.description.ilike(term, escape="\\"),
+            Resource.location.ilike(term, escape="\\"),
+            Resource.identifier.ilike(term, escape="\\"),
+            in_tags.exists(),
+            in_attributes.exists(),
+        ))
     if status_filter:
         query = query.where(Resource.status == status_filter)
     if type_id is not None:
         query = query.where(Resource.type_id == type_id)
     if category_id is not None:
-        query = query.where(Resource.category_id == category_id)
-    if tag:
-        query = query.join(ResourceTag).join(Tag).where(func.lower(Tag.name) == tag.lower().strip())
-    return [serialize_resource(db, item) for item in db.scalars(query.order_by(Resource.updated_at.desc()).offset(skip).limit(limit)).all()]
+        category_ids = {category_id}
+        if include_subcategories:
+            frontier = {category_id}
+            while frontier:
+                frontier = set(db.scalars(select(Category.id).where(Category.parent_id.in_(frontier)))) - category_ids
+                category_ids |= frontier
+        query = query.where(Resource.category_id.in_(category_ids))
+    if tag and tag.strip():
+        tagged = (
+            select(ResourceTag.resource_id)
+            .join(Tag, Tag.id == ResourceTag.tag_id)
+            .where(ResourceTag.resource_id == Resource.id, func.lower(Tag.name) == tag.lower().strip())
+        )
+        query = query.where(tagged.exists())
+
+    total = db.scalar(select(func.count()).select_from(query.subquery()))
+    response.headers["X-Total-Count"] = str(total)
+    column = SORT_COLUMNS[sort]
+    ordering = column.asc() if order == "asc" else column.desc()
+    rows = db.scalars(query.order_by(ordering, Resource.id.desc()).offset(skip).limit(limit)).all()
+    return [serialize_resource(db, item) for item in rows]
 
 
 @router.post("", response_model=ResourceRead, status_code=201)
@@ -145,6 +199,11 @@ def create_type(payload: ResourceTypeCreate, db: Session = Depends(get_db), _: U
     db.commit()
     db.refresh(resource_type)
     return resource_type
+
+
+@router.get("/catalog/tags", response_model=list[str])
+def list_tags(db: Session = Depends(get_db)):
+    return db.scalars(select(Tag.name).order_by(Tag.name)).all()
 
 
 @router.get("/catalog/categories", response_model=list[CategoryRead])
