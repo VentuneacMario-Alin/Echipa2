@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 class RegisterRequest(BaseModel):
@@ -82,6 +82,11 @@ class AttachmentCreate(BaseModel):
     mime_type: str | None = Field(default=None, max_length=100)
     size_bytes: int | None = Field(default=None, ge=0)
 
+    @field_validator("url")
+    @classmethod
+    def check_url(cls, value):
+        return _validate_url(value)
+
     @model_validator(mode="after")
     def validate_payload(self):
         if self.kind == "link" and (not self.url or self.storage_path or self.file_name):
@@ -89,6 +94,12 @@ class AttachmentCreate(BaseModel):
         if self.kind == "fisier" and (not self.storage_path or not self.file_name or self.url):
             raise ValueError("A file requires storage_path and file_name and cannot contain url.")
         return self
+
+
+def _validate_url(value: str | None) -> str | None:
+    if value is not None and not value.lower().startswith(("http://", "https://")):
+        raise ValueError("url must start with http:// or https://")
+    return value
 
 
 class AttachmentRead(AttachmentCreate):
@@ -99,7 +110,46 @@ class AttachmentRead(AttachmentCreate):
     created_at: datetime
 
 
-class ResourceCreate(BaseModel):
+class ResourceInputRules(BaseModel):
+    """Reguli comune de curatare/validare pentru crearea si editarea resurselor."""
+
+    @field_validator("name", check_fields=False)
+    @classmethod
+    def clean_name(cls, value):
+        if value is None:
+            return value
+        value = value.strip()
+        if not value:
+            raise ValueError("name cannot be blank.")
+        return value
+
+    @field_validator("identifier", "location", check_fields=False)
+    @classmethod
+    def blank_to_none(cls, value):
+        if value is None:
+            return None
+        return value.strip() or None
+
+    @field_validator("tags", check_fields=False)
+    @classmethod
+    def check_tags(cls, value):
+        if value is None:
+            return value
+        if any(len(tag.strip()) > 50 for tag in value):
+            raise ValueError("a tag can have at most 50 characters.")
+        return value
+
+    @field_validator("attributes", check_fields=False)
+    @classmethod
+    def check_attributes(cls, value):
+        if value is None:
+            return value
+        if any(len(key.strip()) > 60 for key in value):
+            raise ValueError("an attribute key can have at most 60 characters.")
+        return value
+
+
+class ResourceCreate(ResourceInputRules):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
     type_id: int
@@ -114,7 +164,7 @@ class ResourceCreate(BaseModel):
     attachments: list[AttachmentCreate] = Field(default_factory=list, max_length=20)
 
 
-class ResourceUpdate(BaseModel):
+class ResourceUpdate(ResourceInputRules):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
     type_id: int | None = None
