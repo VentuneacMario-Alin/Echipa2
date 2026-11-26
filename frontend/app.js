@@ -56,10 +56,13 @@ function escapeHtml(value = "") {
   })[character]);
 }
 
+// API-ul ruleaza pe portul 8080, pe acelasi host ca frontend-ul (cookie-ul de sesiune ramane valid).
+const API_BASE = `${window.location.protocol}//${window.location.hostname}:8080`;
+
 async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
   if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const response = await fetch(path, { ...options, headers, credentials: "same-origin" });
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: "include" });
   if (response.status === 204) return null;
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
