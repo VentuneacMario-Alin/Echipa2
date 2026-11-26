@@ -45,6 +45,16 @@ def ensure_related(db: Session, payload: ResourceCreate | ResourceUpdate) -> Non
         raise HTTPException(status_code=404, detail="Owner not found.")
 
 
+def ensure_unique_identifier(db: Session, identifier: str | None, exclude_id: int | None = None) -> None:
+    if not identifier:
+        return
+    query = select(Resource.id).where(Resource.identifier == identifier)
+    if exclude_id is not None:
+        query = query.where(Resource.id != exclude_id)
+    if db.scalar(query) is not None:
+        raise HTTPException(status_code=409, detail="A resource with this identifier already exists.")
+
+
 def get_resource_or_404(db: Session, resource_id: int) -> Resource:
     resource = db.get(Resource, resource_id)
     if resource is None:
@@ -175,6 +185,7 @@ def list_resources(
 @router.post("", response_model=ResourceRead, status_code=201)
 def create_resource(payload: ResourceCreate, db: Session = Depends(get_db), user: User = Depends(editor_only)):
     ensure_related(db, payload)
+    ensure_unique_identifier(db, payload.identifier)
     resource = Resource(**payload.model_dump(exclude={"tags", "attributes", "attachments"}), created_by=user.id, updated_by=user.id)
     db.add(resource)
     db.flush()
@@ -420,8 +431,11 @@ def update_resource(resource_id: int, payload: ResourceUpdate, db: Session = Dep
         raise HTTPException(status_code=404, detail="Resource not found.")
     ensure_related(db, payload)
     values = payload.model_dump(exclude_unset=True, exclude={"tags", "attributes", "attachments"})
-    if "type_id" in values and values["type_id"] is None:
-        raise HTTPException(status_code=422, detail="type_id cannot be null.")
+    for required in ("type_id", "name", "status"):
+        if required in values and values[required] is None:
+            raise HTTPException(status_code=422, detail=f"{required} cannot be null.")
+    if values.get("identifier"):
+        ensure_unique_identifier(db, values["identifier"], exclude_id=resource.id)
     for key, value in values.items():
         setattr(resource, key, value)
     resource.updated_by = user.id
@@ -436,5 +450,7 @@ def delete_resource(resource_id: int, db: Session = Depends(get_db), _: User = D
     resource = db.get(Resource, resource_id)
     if resource is None:
         raise HTTPException(status_code=404, detail="Resource not found.")
+    for model in (ResourceTag, ResourceAttribute, ResourceAttachment, Booking):
+        db.execute(delete(model).where(model.resource_id == resource.id))
     db.delete(resource)
     db.commit()
